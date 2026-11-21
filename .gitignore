@@ -4,3 +4,7 @@ node_modules/
 dist/
 .vercel/
 .env.local
+.env
+.env.*.local
+__pycache__/
+.venv/
