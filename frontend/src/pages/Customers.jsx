@@ -233,7 +233,7 @@ function CustomerFormModal({ customer, onClose, onSaved }) {
 function CustomerProfileModal({ customer, sales, onClose }) {
   return (
     <Modal title={`Customer Profile · ${customer.name}`} onClose={onClose} maxWidth="560px">
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#E9EFE8', padding: '12px', fontSize: '12px', marginBottom: '12px' }}>
+      <div className="cust-stats-box">
         <div>Mobile: <b>{customer.mobile || '—'}</b></div>
         <div>Email: <b>{customer.email || '—'}</b></div>
         <div>Loyalty Points: <b>{customer.loyalty_points}</b></div>

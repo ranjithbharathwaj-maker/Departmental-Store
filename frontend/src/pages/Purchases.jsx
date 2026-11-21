@@ -273,7 +273,7 @@ function CreatePoModal({ suppliers, products, onClose, onDone }) {
             <button type="button" className="ghost sm" onClick={addLine}>+ Add Product Line</button>
           </div>
           {lines.map((l, idx) => (
-            <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '8px', marginBottom: '6px' }}>
+            <div key={idx} className="po-item-row">
               <select
                 value={l.product_id}
                 onChange={(e) => updateLine(idx, 'product_id', e.target.value)}

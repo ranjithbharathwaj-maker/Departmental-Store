@@ -377,7 +377,7 @@ export default function Pos() {
       </div>
 
       {/* RIGHT: Bill Summary, Customer & Payments */}
-      <aside className="pos-sidebar">
+      <aside className="pos-sidebar" id="pos-checkout-section">
         <h3>Billing Summary</h3>
 
         {/* Customer Select / Input */}
@@ -537,6 +537,26 @@ export default function Pos() {
           {busy ? 'Processing Sale…' : `Complete Sale (${inr(quote ? quote.total : 0)})`}
         </button>
       </aside>
+
+      {/* Mobile Sticky Action Bar for Easy Phone Billing */}
+      {cart.length > 0 && (
+        <div className="pos-mobile-bar">
+          <div className="pos-mobile-info">
+            <small>Total ({cart.reduce((s, x) => s + (Number(x.qty) || 0), 0)} items)</small>
+            <b>{inr(quote ? quote.total : 0)}</b>
+          </div>
+          <button
+            type="button"
+            className="btn sm"
+            onClick={() => {
+              const el = document.getElementById('pos-checkout-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            Pay & Checkout ↓
+          </button>
+        </div>
+      )}
 
       {/* Invoice Receipt Modal */}
       {invoice && (

@@ -18,7 +18,9 @@ import {
   Settings as SettingsIcon,
   LogOut,
   RotateCcw,
-  ShieldCheck
+  ShieldCheck,
+  Menu,
+  X
 } from 'lucide-react';
 
 import { tok, wipe, api } from './api.js';
@@ -255,6 +257,62 @@ function Shell() {
   const nav = useNavigate();
   const { addToast } = useToast();
 
+  // Desktop collapsed preference (persisted in localStorage)
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('merchant_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Mobile slide-in drawer state
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Sync desktop collapsed state with localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('merchant_sidebar_collapsed', collapsed ? 'true' : 'false');
+    } catch {}
+  }, [collapsed]);
+
+  // Close mobile drawer on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && mobileOpen) {
+        setMobileOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileOpen]);
+
+  // Prevent background scrolling while the mobile drawer is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
+  const toggleSidebar = () => {
+    if (window.innerWidth < 992) {
+      setMobileOpen((prev) => !prev);
+    } else {
+      setCollapsed((prev) => !prev);
+    }
+  };
+
+  const handleNavLinkClick = () => {
+    if (mobileOpen) {
+      setMobileOpen(false);
+    }
+  };
+
   const handleQuickSwitch = async (e) => {
     const targetEmail = e.target.value;
     if (!targetEmail || targetEmail === user.email) return;
@@ -268,43 +326,100 @@ function Shell() {
   };
 
   return (
-    <div className="shell">
-      <aside className="side">
-        <div className="brand">
-          <span className="mark">M</span>
-          <b>ROYAL MART</b>
+    <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
+      {/* Mobile Drawer Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar Navigation */}
+      <aside
+        className={`side ${mobileOpen ? 'mobile-open' : ''} ${collapsed ? 'collapsed' : ''}`}
+        aria-label="Sidebar navigation"
+      >
+        <div className="side-header">
+          <div className="brand" title="Royal Mart">
+            <span className="mark">M</span>
+            <b className="brand-text">ROYAL MART</b>
+          </div>
+          {/* Close button visible only inside mobile drawer */}
+          <button
+            type="button"
+            className="drawer-close-btn"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close navigation menu"
+          >
+            <X size={20} />
+          </button>
         </div>
-        <div className="demo-badge-side">
-          <ShieldCheck size={13} style={{ marginRight: '4px', color: '#496751' }} /> Demo Mode Active
+
+        <div className="demo-badge-side" title="Demo Mode Active">
+          <ShieldCheck size={14} style={{ marginRight: '4px', color: '#496751', flexShrink: 0 }} />
+          <span className="badge-text">Demo Mode Active</span>
         </div>
 
         <nav>
           {MODS.filter(([id]) => can(user, id)).map(([id, label, Icon]) => (
-            <NavLink key={id} to={'/' + id}>
-              <Icon size={17} />
-              {label}
+            <NavLink
+              key={id}
+              to={'/' + id}
+              onClick={handleNavLinkClick}
+              title={label}
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Icon size={18} className="nav-icon" />
+              <span className="nav-label">{label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <div className="who">
-          <Store size={15} />
-          <div>
+        <div className="who" title="Royal Mart · Chennai, Tamil Nadu">
+          <Store size={16} className="who-icon" />
+          <div className="who-details">
             <b>Royal Mart</b>
             <div style={{ fontSize: '10px' }}>Chennai, Tamil Nadu</div>
           </div>
         </div>
       </aside>
 
+      {/* Main Content Area */}
       <section className="main">
         <header className="top">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span>
-              Signed in as <b>{user.name}</b> · <em>{user.role}</em>
-            </span>
+          <div className="header-left">
+            <button
+              type="button"
+              className="menu-toggle-btn"
+              onClick={toggleSidebar}
+              aria-label="Toggle navigation menu"
+              aria-expanded={window.innerWidth < 992 ? mobileOpen : !collapsed}
+            >
+              <Menu size={20} />
+            </button>
+
+            <div className="mobile-header-brand">
+              <span className="mark sm">M</span>
+              <b>ROYAL MART</b>
+            </div>
+
+            <div className="user-greeting">
+              <span>
+                Signed in as <b>{user.name}</b> · <em>{user.role}</em>
+              </span>
+            </div>
+          </div>
+
+          <div className="header-right">
             <div className="role-switcher">
-              <span style={{ fontSize: '11px', color: '#6d756d' }}>Switch Role:</span>
-              <select value={user.email} onChange={handleQuickSwitch}>
+              <span className="switcher-lbl">Role:</span>
+              <select
+                value={user.email}
+                onChange={handleQuickSwitch}
+                aria-label="Switch demo role"
+              >
                 {DEMO_USERS.map(([rName, rEmail]) => (
                   <option key={rEmail} value={rEmail}>
                     {rName}
@@ -312,16 +427,19 @@ function Shell() {
                 ))}
               </select>
             </div>
-          </div>
 
-          <button
-            onClick={() => {
-              logout();
-              nav('/login');
-            }}
-          >
-            <LogOut size={15} /> Sign out
-          </button>
+            <button
+              type="button"
+              className="signout-btn"
+              onClick={() => {
+                logout();
+                nav('/login');
+              }}
+              title="Sign out of store"
+            >
+              <LogOut size={15} /> <span className="signout-text">Sign out</span>
+            </button>
+          </div>
         </header>
 
         <div className="page">
