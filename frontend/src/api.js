@@ -17,7 +17,9 @@ export async function api(path, opt = {}) {
 
   // Real backend path
   const t = tok();
-  const r = await fetch('/api' + path, {
+  const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+  const url = apiBase ? `${apiBase.replace(/\/+$/, '')}/api${path}` : `/api${path}`;
+  const r = await fetch(url, {
     ...opt,
     headers: {
       'Content-Type': 'application/json',

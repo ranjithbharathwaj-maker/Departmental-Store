@@ -1,10 +1,28 @@
-.env.local
-.env.example
+# Dependencies
 node_modules/
+*/node_modules/
+
+# Production build artifacts
 dist/
-.vercel/
-.env.local
+*/dist/
+
+# Local Environment Variables & Secrets
 .env
+.env.local
 .env.*.local
+frontend/.env
+backend/.env
+!*.env.example
+
+# Vercel Deployment Artifacts
+.vercel/
+
+# Python & Backend Virtual Environments
 __pycache__/
+*.pyc
 .venv/
+env/
+venv/
+
+env/
+venv/
