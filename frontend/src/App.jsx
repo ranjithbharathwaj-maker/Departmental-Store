@@ -20,8 +20,10 @@ import {
   RotateCcw,
   ShieldCheck,
   Menu,
-  X
+  X,
+  Lock
 } from 'lucide-react';
+import retailStoreImg from './assets/supermarket-aisle.webp';
 
 import { tok, wipe, api } from './api.js';
 import { ToastProvider, useToast } from './components/Toast.jsx';
@@ -142,94 +144,157 @@ function Login() {
 
   return (
     <div className="login">
-      <form className="login-form" onSubmit={submit} noValidate>
-        <div className="brand">
-          <span className="mark">M</span>
-          <b>ROYAL MART</b>
-        </div>
-        <h1>Welcome Back</h1>
-        <p className="sub">Departmental Store Management System (Chennai, TN)</p>
-
-        {err && <div className="alert" role="alert">{err}</div>}
-        {note && <div className="alert ok">{note}</div>}
-
-        <label>
-          Email Address
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="e.g. owner@royalmart.demo"
-            autoComplete="username"
-          />
-        </label>
-
-        <label>
-          Password
-          <span className="pw">
-            <input
-              type={show ? 'text' : 'password'}
-              value={pw}
-              onChange={(e) => setPw(e.target.value)}
-              placeholder="Demo@123"
-              autoComplete="current-password"
-            />
-            <button type="button" onClick={() => setShow(!show)} aria-label="Show or hide password">
-              {show ? <EyeOff size={17} /> : <Eye size={17} />}
-            </button>
-          </span>
-        </label>
-
-        <div className="row">
-          <label className="chk">
-            <input type="checkbox" checked={rem} onChange={(e) => setRem(e.target.checked)} />
-            Remember me
-          </label>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              setNote('In Demo Mode all demo accounts use password "Demo@123". Click below to auto-fill.');
-            }}
-          >
-            Forgot password?
-          </a>
-        </div>
-
-        <button className="btn" disabled={busy}>
-          {busy ? 'Authenticating…' : 'Sign in to Store'}
-        </button>
-
-        <div className="demo">
-          <small>⚡ DEMO ACCOUNTS · CLICK TO QUICK FILL</small>
-          <div>
-            {DEMO_USERS.map(([n, e, p]) => (
-              <button
-                type="button"
-                key={n}
-                onClick={() => {
-                  setEmail(e);
-                  setPw(p);
-                  setErr('');
-                }}
-              >
-                {n}
-              </button>
-            ))}
+      {/* Left Column: Focused Login Form */}
+      <div className="login-form-pane">
+        <form className="login-form" onSubmit={submit} noValidate>
+          <div className="brand">
+            <span className="mark">M</span>
+            <b>ROYAL MART</b>
           </div>
-        </div>
-      </form>
+          <h1>Welcome Back</h1>
+          <p className="sub">Supermarket Operations & Departmental Store Management</p>
 
+          {err && <div className="alert" role="alert">{err}</div>}
+          {note && <div className="alert ok">{note}</div>}
+
+          <label>
+            Email Address
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. owner@royalmart.demo"
+              autoComplete="username"
+            />
+          </label>
+
+          <label>
+            Password
+            <span className="pw">
+              <input
+                type={show ? 'text' : 'password'}
+                value={pw}
+                onChange={(e) => setPw(e.target.value)}
+                placeholder="Demo@123"
+                autoComplete="current-password"
+              />
+              <button type="button" onClick={() => setShow(!show)} aria-label="Show or hide password">
+                {show ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </span>
+          </label>
+
+          <div className="row">
+            <label className="chk">
+              <input type="checkbox" checked={rem} onChange={(e) => setRem(e.target.checked)} />
+              Remember me
+            </label>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setNote('In Demo Mode all demo accounts use password "Demo@123". Click below to auto-fill.');
+              }}
+            >
+              Forgot password?
+            </a>
+          </div>
+
+          <button className="btn" disabled={busy}>
+            {busy ? 'Authenticating…' : 'Sign in to Store'}
+          </button>
+
+          <div className="demo">
+            <small>⚡ DEMO ACCOUNTS · CLICK TO QUICK FILL</small>
+            <div>
+              {DEMO_USERS.map(([n, e, p]) => (
+                <button
+                  type="button"
+                  key={n}
+                  onClick={() => {
+                    setEmail(e);
+                    setPw(p);
+                    setErr('');
+                  }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Security Trust Strip */}
+          <div className="login-trust-strip">
+            <Lock size={12} style={{ color: '#496751', flexShrink: 0 }} />
+            <span>256-Bit SSL · Role-Based Security · Store-Isolated Tenant Data</span>
+          </div>
+        </form>
+      </div>
+
+      {/* Right Column: Rich Retail Editorial Hero Panel */}
       <aside className="login-side">
-        <div>
+        <div className="login-side-bg-wrap">
+          <img
+            src={retailStoreImg}
+            alt="Royal Mart Departmental Store Aisle"
+            className="login-side-bg"
+            width="960"
+            height="1280"
+            loading="eager"
+          />
+          <div className="login-side-overlay" />
+        </div>
+
+        <div className="login-side-content">
+          <div className="login-hero-pill">
+            <Sparkles size={13} style={{ color: '#D5BD91' }} />
+            <span>Modern Retail Operating Engine</span>
+          </div>
+
           <h2>One calm place to run the complete supermarket.</h2>
-          <ul>
-            <li>High-velocity POS Billing & Barcode Scanning</li>
-            <li>Multi-tier Stock & Inventory Audit Ledgers</li>
-            <li>Vendor Purchase Orders & GRN Auto-inward</li>
-            <li>Smart Insights: Expiry Radar & Dead Stock Detection</li>
-            <li>Real-time Indian GST Calculations (CGST/SGST/IGST)</li>
-          </ul>
+          <p className="login-hero-desc">
+            Engineered specifically for high-velocity grocery and departmental retail across Tamil Nadu.
+          </p>
+
+          <div className="login-features-grid">
+            <div className="feature-item">
+              <div className="feature-icon"><ShoppingCart size={16} /></div>
+              <div>
+                <b>High-Velocity POS</b>
+                <p>Instant barcode scanning, customer loyalty & split tendering.</p>
+              </div>
+            </div>
+            <div className="feature-item">
+              <div className="feature-icon"><Boxes size={16} /></div>
+              <div>
+                <b>Live Stock & Expiry Radar</b>
+                <p>Batch-level expiry alerts, audit logs & dead-stock warnings.</p>
+              </div>
+            </div>
+            <div className="feature-item">
+              <div className="feature-icon"><BarChart3 size={16} /></div>
+              <div>
+                <b>Automated Indian GST</b>
+                <p>CGST, SGST & IGST calculation with one-click Excel exports.</p>
+              </div>
+            </div>
+            <div className="feature-item">
+              <div className="feature-icon"><ShieldCheck size={16} /></div>
+              <div>
+                <b>Role-Based Access</b>
+                <p>Restricted permissions for Cashiers, Inventory Leads & Owners.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Depth Card: Live Store Activity Metric */}
+          <div className="hero-activity-badge">
+            <div className="pulse-indicator" />
+            <div>
+              <div className="activity-title">Live Store Activity · Register #01 Active</div>
+              <div className="activity-val">Today's Store Sales: ₹1,48,920.00 · 142 Bills Completed</div>
+            </div>
+          </div>
         </div>
       </aside>
     </div>

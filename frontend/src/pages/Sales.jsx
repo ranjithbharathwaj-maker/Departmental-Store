@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { inr, formatDateTime, exportToCSV } from '../utils/helpers.js';
+import { inr, formatDateTime } from '../utils/helpers.js';
+import { exportToExcel } from '../utils/excelExport.js';
 import Modal from '../components/Modal.jsx';
 import { useToast } from '../components/Toast.jsx';
 import {
@@ -43,23 +44,54 @@ export default function Sales() {
     loadSales();
   }, [q, page, dateFrom, dateTo]);
 
-  const handleExport = () => {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
     if (!sales.length) return addToast('No sales data to export.', 'info');
-    const rows = sales.map((s) => ({
-      InvoiceNo: s.invoice_no,
-      Date: s.created_at,
-      Cashier: s.cashier,
-      Customer: s.customer_name || 'Walk-in',
-      Subtotal: s.subtotal,
-      Discount: s.discount,
-      Taxable: s.taxable,
-      CGST: s.cgst,
-      SGST: s.sgst,
-      TotalPayable: s.total,
-      Payments: s.payments?.map((p) => `${p.method}:${p.amount}`).join(';')
-    }));
-    exportToCSV(`RoyalMart_Sales_${new Date().toISOString().slice(0, 10)}.csv`, rows);
-    addToast('Sales log exported to CSV.', 'success');
+    setExporting(true);
+    try {
+      // Fetch all matching sales for export (not just current page)
+      const all = await api(`/sales?q=${encodeURIComponent(q)}&dateFrom=${dateFrom}&dateTo=${dateTo}&page=1&size=9999`);
+      const exportRows = (all.items || sales).map((s) => ({
+        invoice_no: s.invoice_no,
+        date: s.created_at,
+        cashier: s.cashier,
+        customer: s.customer_name || 'Walk-in',
+        subtotal: s.subtotal,
+        discount: s.discount,
+        taxable: s.taxable,
+        cgst: s.cgst,
+        sgst: s.sgst,
+        total: s.total,
+        payments: s.payments?.map((p) => `${p.method}: ₹${p.amount}`).join(', ') || ''
+      }));
+      const columns = [
+        { header: 'Invoice #', key: 'invoice_no', width: 16 },
+        { header: 'Date & Time', key: 'date', format: 'date', width: 20 },
+        { header: 'Cashier', key: 'cashier', width: 18 },
+        { header: 'Customer', key: 'customer', width: 20 },
+        { header: 'Subtotal', key: 'subtotal', format: 'currency', width: 16 },
+        { header: 'Discount', key: 'discount', format: 'currency', width: 14 },
+        { header: 'Taxable', key: 'taxable', format: 'currency', width: 16 },
+        { header: 'CGST', key: 'cgst', format: 'currency', width: 14 },
+        { header: 'SGST', key: 'sgst', format: 'currency', width: 14 },
+        { header: 'Total Payable', key: 'total', format: 'currency', width: 16 },
+        { header: 'Payments', key: 'payments', width: 28 }
+      ];
+      const filename = await exportToExcel({
+        moduleName: 'sales',
+        storeName: 'royal-mart',
+        sheetName: 'Sales Transactions',
+        columns,
+        rows: exportRows,
+        totals: { labelCol: 'invoice_no', sumCols: ['subtotal', 'discount', 'taxable', 'cgst', 'sgst', 'total'] }
+      });
+      addToast(`Sales exported: ${filename}`, 'success');
+    } catch (e) {
+      addToast(e.message || 'Export failed.', 'error');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const pages = Math.max(1, Math.ceil(total / 15));
@@ -73,8 +105,8 @@ export default function Sales() {
             Complete audit log of {total} customer invoices, GST breakdowns & sales returns
           </p>
         </div>
-        <button type="button" className="ghost" onClick={handleExport}>
-          <Download size={14} style={{ marginRight: '6px' }} /> Export Sales CSV
+        <button type="button" className="ghost" onClick={handleExport} disabled={exporting}>
+          <Download size={14} style={{ marginRight: '6px' }} /> {exporting ? 'Exporting…' : 'Export to Excel'}
         </button>
       </div>
 

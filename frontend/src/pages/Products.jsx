@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { inr, num, exportToCSV } from '../utils/helpers.js';
+import { inr, num } from '../utils/helpers.js';
+import { exportToExcel } from '../utils/excelExport.js';
 import Modal from '../components/Modal.jsx';
 import BarcodeModal from '../components/BarcodeModal.jsx';
 import { useToast } from '../components/Toast.jsx';
@@ -70,32 +71,46 @@ export default function Products() {
     }
   };
 
-  const handleExportCSV = () => {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportExcel = async () => {
     if (!data || !data.items.length) {
       addToast('No products to export.', 'info');
       return;
     }
-    // Fetch all products for export
-    api('/products?size=200').then((res) => {
-      const rows = res.items.map((p) => ({
-        ID: p.id,
-        Name: p.name,
-        Barcode: p.barcode,
-        SKU: p.sku,
-        Category: p.category,
-        Brand: p.brand,
-        Unit: p.unit,
-        PurchasePrice: p.purchase_price,
-        SellingPrice: p.selling_price,
-        MRP: p.mrp,
-        GST_Pct: p.gst,
-        StockQty: p.qty,
-        MinStock: p.min_stock,
-        ExpiryDate: p.expiry_date
-      }));
-      exportToCSV(`RoyalMart_Catalog_${new Date().toISOString().slice(0, 10)}.csv`, rows);
-      addToast('Product catalog exported to CSV successfully.', 'success');
-    });
+    setExporting(true);
+    try {
+      const res = await api('/products?size=9999');
+      const columns = [
+        { header: 'ID', key: 'id', width: 10 },
+        { header: 'Product Name', key: 'name', width: 28 },
+        { header: 'Barcode', key: 'barcode', width: 16 },
+        { header: 'SKU', key: 'sku', width: 14 },
+        { header: 'Category', key: 'category', width: 20 },
+        { header: 'Brand', key: 'brand', width: 18 },
+        { header: 'Unit', key: 'unit', width: 10 },
+        { header: 'Purchase Price', key: 'purchase_price', format: 'currency', width: 16 },
+        { header: 'Selling Price', key: 'selling_price', format: 'currency', width: 16 },
+        { header: 'MRP', key: 'mrp', format: 'currency', width: 14 },
+        { header: 'GST %', key: 'gst', format: 'number', width: 10 },
+        { header: 'Stock Qty', key: 'qty', format: 'integer', width: 12 },
+        { header: 'Min Stock', key: 'min_stock', format: 'integer', width: 12 },
+        { header: 'Expiry Date', key: 'expiry_date', format: 'date-only', width: 14 }
+      ];
+      const filename = await exportToExcel({
+        moduleName: 'product-catalog',
+        storeName: 'royal-mart',
+        sheetName: 'Products',
+        columns,
+        rows: res.items,
+        totals: { labelCol: 'name', sumCols: ['purchase_price', 'selling_price', 'mrp', 'qty'] }
+      });
+      addToast(`Product catalog exported: ${filename}`, 'success');
+    } catch (e) {
+      addToast(e.message || 'Export failed.', 'error');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const pages = data ? Math.max(1, Math.ceil(data.total / 10)) : 1;
@@ -110,8 +125,8 @@ export default function Products() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button type="button" className="ghost" onClick={handleExportCSV}>
-            <Download size={14} style={{ marginRight: '6px' }} /> Export CSV
+          <button type="button" className="ghost" onClick={handleExportExcel} disabled={exporting}>
+            <Download size={14} style={{ marginRight: '6px' }} /> {exporting ? 'Exporting…' : 'Export to Excel'}
           </button>
           <button type="button" className="btn sm" onClick={() => setForm({})}>
             <Plus size={15} style={{ marginRight: '6px' }} /> + Add Product

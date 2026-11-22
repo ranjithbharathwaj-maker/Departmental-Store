@@ -250,3 +250,150 @@ def dashboard(days: int = Query(1, ge=1, le=366), u=Depends(any_of("dashboard"))
                       count(*) filter (where i.qty <= p.min_stock) low_stock from products p join inventory i on i.product_id=p.id
                       where p.store_id=%s and p.is_active""", (sid,)).fetchone()
     return {**s, "gross_profit": gp, **k}
+
+# ---------- Excel Export (openpyxl) ----------
+import io, re
+from datetime import datetime
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from fastapi.responses import StreamingResponse
+
+def build_excel_response(module_name: str, store_name: str, columns: list, rows: list, totals: dict = None):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = module_name.capitalize()[:31]
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    # Header style: theme green fill (#294638) with bold white text
+    header_fill = PatternFill(start_color="294638", end_color="294638", fill_type="solid")
+    header_font = Font(name="Segoe UI", size=11, bold=True, color="FFFFFF")
+    header_align = Alignment(horizontal="left", vertical="center", wrap_text=False)
+
+    for col_idx, col in enumerate(columns, 1):
+        cell = ws.cell(row=1, column=col_idx, value=col["header"])
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_align
+    ws.row_dimensions[1].height = 26
+
+    # Data rows
+    for row_idx, r in enumerate(rows, 2):
+        ws.row_dimensions[row_idx].height = 20
+        for col_idx, col in enumerate(columns, 1):
+            val = r.get(col["key"])
+            cell = ws.cell(row=row_idx, column=col_idx)
+            if col.get("format") in ("currency", "number"):
+                cell.value = float(val) if val is not None else 0.0
+                cell.number_format = '"₹"#,##0.00' if col.get("format") == "currency" else '#,##0.00'
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            elif col.get("format") == "integer":
+                cell.value = int(val) if val is not None else 0
+                cell.number_format = '#,##0'
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            elif col.get("format") == "date" and val:
+                cell.value = str(val)[:19]
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+            else:
+                cell.value = str(val) if val is not None else ""
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+
+    # Totals row if provided
+    if totals and rows:
+        tot_row_idx = len(rows) + 2
+        ws.row_dimensions[tot_row_idx].height = 24
+        tot_fill = PatternFill(start_color="E9EFE8", end_color="E9EFE8", fill_type="solid")
+        tot_font = Font(name="Segoe UI", size=11, bold=True, color="294638")
+        top_border = Side(style="thin", color="496751")
+        bottom_border = Side(style="double", color="294638")
+        cell_border = Border(top=top_border, bottom=bottom_border)
+
+        for col_idx, col in enumerate(columns, 1):
+            cell = ws.cell(row=tot_row_idx, column=col_idx)
+            cell.fill = tot_fill
+            cell.font = tot_font
+            cell.border = cell_border
+            if col["key"] == totals.get("label_col", columns[0]["key"]):
+                cell.value = "TOTAL"
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+            elif col["key"] in totals.get("sum_cols", []):
+                s = sum(float(r.get(col["key"]) or 0) for r in rows)
+                cell.value = s
+                cell.number_format = '"₹"#,##0.00' if col.get("format") == "currency" else '#,##0.00'
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+
+    # Auto-filter
+    ws.auto_filter.ref = ws.dimensions
+
+    # Auto column width
+    for col_idx, col in enumerate(columns, 1):
+        letter = get_column_letter(col_idx)
+        max_len = max([len(str(ws.cell(row=r, column=col_idx).value or '')) for r in range(1, ws.max_row + 1)] or [10])
+        ws.column_dimensions[letter].width = min(max(max_len + 4, 14), 45)
+
+    stream = io.BytesIO()
+    wb.save(stream)
+    excel_bytes = stream.getvalue()
+
+    clean_store = re.sub(r'[^a-z0-9]+', '-', store_name.lower()).strip('-') or 'store'
+    clean_module = re.sub(r'[^a-z0-9]+', '-', module_name.lower()).strip('-')
+    filename = f"{clean_module}-{clean_store}-{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+
+    from fastapi.responses import Response
+    return Response(
+        content=excel_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@router.get("/products/export-excel")
+def export_products_excel(q: str = "", category: str = "", sort: str = "name", archived: bool = False,
+                          u=Depends(any_of("products")), db=Depends(get_db)):
+    where = """p.store_id=%s and p.is_active=%s and (%s='' or p.name ilike %s or p.barcode=%s or p.sku ilike %s)
+               and (%s='' or p.category=%s)"""
+    args = (u["store_id"], not archived, q, f"%{q}%", q, f"%{q}%", category, category)
+    rows = db.execute(f"""select p.*, i.qty, (i.qty * p.purchase_price) stock_value
+                          from products p join inventory i on i.product_id=p.id where {where}
+                          order by {SORTS.get(sort, 'p.name')}""", args).fetchall()
+    cols = [
+        {"header": "Product Name", "key": "name"},
+        {"header": "Barcode", "key": "barcode"},
+        {"header": "SKU", "key": "sku"},
+        {"header": "Category", "key": "category"},
+        {"header": "Brand", "key": "brand"},
+        {"header": "Unit", "key": "unit"},
+        {"header": "Stock Qty", "key": "qty", "format": "number"},
+        {"header": "Purchase Price (₹)", "key": "purchase_price", "format": "currency"},
+        {"header": "Selling Price (₹)", "key": "selling_price", "format": "currency"},
+        {"header": "MRP (₹)", "key": "mrp", "format": "currency"},
+        {"header": "GST %", "key": "gst", "format": "number"},
+        {"header": "Stock Valuation (₹)", "key": "stock_value", "format": "currency"}
+    ]
+    totals = {"label_col": "name", "sum_cols": ["qty", "stock_value"]}
+    return build_excel_response("products", u.get("store", "store"), cols, rows, totals)
+
+@router.get("/sales/export-excel")
+def export_sales_excel(q: str = "", u=Depends(any_of("sales", "pos")), db=Depends(get_db)):
+    args = (u["store_id"], q, f"%{q}%", f"%{q}%")
+    w = "store_id=%s and (%s='' or invoice_no ilike %s or customer_name ilike %s)"
+    rows = db.execute(f"select * from sales where {w} order by created_at desc", args).fetchall()
+    cols = [
+        {"header": "Invoice No", "key": "invoice_no"},
+        {"header": "Date & Time", "key": "created_at", "format": "date"},
+        {"header": "Cashier", "key": "cashier"},
+        {"header": "Customer", "key": "customer_name"},
+        {"header": "Customer Mobile", "key": "customer_mobile"},
+        {"header": "Subtotal (₹)", "key": "subtotal", "format": "currency"},
+        {"header": "Discount (₹)", "key": "discount", "format": "currency"},
+        {"header": "Taxable (₹)", "key": "taxable", "format": "currency"},
+        {"header": "CGST (₹)", "key": "cgst", "format": "currency"},
+        {"header": "SGST (₹)", "key": "sgst", "format": "currency"},
+        {"header": "IGST (₹)", "key": "igst", "format": "currency"},
+        {"header": "Round Off (₹)", "key": "round_off", "format": "currency"},
+        {"header": "Net Total (₹)", "key": "total", "format": "currency"},
+        {"header": "Status", "key": "status"}
+    ]
+    totals = {"label_col": "invoice_no", "sum_cols": ["taxable", "cgst", "sgst", "igst", "total"]}
+    return build_excel_response("sales", u.get("store", "store"), cols, rows, totals)

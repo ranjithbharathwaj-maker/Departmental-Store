@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { inr, exportToCSV } from '../utils/helpers.js';
+import { inr } from '../utils/helpers.js';
+import { exportToExcel } from '../utils/excelExport.js';
 import { useToast } from '../components/Toast.jsx';
 import {
   BarChart3,
@@ -38,12 +39,41 @@ export default function Reports() {
     loadReport();
   }, [type]);
 
-  const handleExportCSV = () => {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportExcel = async () => {
     if (!report || !report.rows || !report.rows.length) {
       return addToast('No data available to export.', 'info');
     }
-    exportToCSV(`RoyalMart_${type}_${new Date().toISOString().slice(0, 10)}.csv`, report.rows);
-    addToast(`${report.title} exported to CSV successfully.`, 'success');
+    setExporting(true);
+    try {
+      // Build columns dynamically from the report data keys
+      const keys = Object.keys(report.rows[0]);
+      const moneyKeys = ['price', 'cost', 'revenue', 'total', 'amount', 'profit', 'tax', 'discount', 'subtotal', 'sales', 'margin', 'value'];
+      const columns = keys.map((k) => {
+        const isMoney = moneyKeys.some((m) => k.toLowerCase().includes(m));
+        return {
+          header: k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+          key: k,
+          format: isMoney ? 'currency' : (typeof report.rows[0][k] === 'number' ? 'number' : undefined),
+          width: Math.max(16, k.length + 6)
+        };
+      });
+      const sumCols = columns.filter((c) => c.format === 'currency').map((c) => c.key);
+      const filename = await exportToExcel({
+        moduleName: type.replace(/_/g, '-'),
+        storeName: 'royal-mart',
+        sheetName: report.title || 'Report',
+        columns,
+        rows: report.rows,
+        totals: sumCols.length > 0 ? { labelCol: keys[0], sumCols } : null
+      });
+      addToast(`${report.title} exported: ${filename}`, 'success');
+    } catch (e) {
+      addToast(e.message || 'Export failed.', 'error');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const currentDef = REPORT_TYPES.find((r) => r.id === type);
@@ -57,8 +87,8 @@ export default function Reports() {
             Generate executive store summaries, category distributions & exportable tax reports
           </p>
         </div>
-        <button type="button" className="btn sm" onClick={handleExportCSV}>
-          <Download size={14} style={{ marginRight: '6px' }} /> Download CSV
+        <button type="button" className="btn sm" onClick={handleExportExcel} disabled={exporting}>
+          <Download size={14} style={{ marginRight: '6px' }} /> {exporting ? 'Exporting…' : 'Export to Excel'}
         </button>
       </div>
 
